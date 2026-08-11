@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Suoni di Terni — mappa sonora</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,380;0,9..144,480;0,9..144,600;1,9..144,480&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0c0f14;
+    --ink-2:#141922;
+    --glass:rgba(255,255,255,0.055);
+    --glass-brd:rgba(255,255,255,0.11);
+    --steel:#8b93a7;
+    --water:#4fd1c5;
+    --warm:#f2b84b;
+    --text:#e9edf3;
+    --text-dim:#9aa5b8;
+
+    --m-calma:#4fd1c5;
+    --m-gioia:#f2b84b;
+    --m-nostalgia:#a78bfa;
+    --m-tensione:#f2637a;
+    --m-caos:#ff6b4a;
+    --m-silenzio:#7c8aa3;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; margin:0; padding:0; overflow:hidden;}
+  body{
+    font-family:'Manrope', sans-serif;
+    background:var(--ink);
+    color:var(--text);
+  }
+  .mono{font-family:'JetBrains Mono', monospace; letter-spacing:0.01em;}
+  .serif{font-family:'Fraunces', serif;}
+
+  #map{position:absolute; inset:0; z-index:1;}
+  #map .leaflet-tile-pane{
+    filter: invert(1) hue-rotate(190deg) brightness(0.92) contrast(0.88) saturate(0.55);
+  }
+  .leaflet-control-attribution{
+    background:rgba(12,15,20,0.55) !important; color:var(--text-dim) !important;
+    font-size:9.5px !important; backdrop-filter:blur(6px);
+  }
+  .leaflet-control-attribution a{color:var(--water) !important;}
+  .leaflet-top.leaflet-right{margin-top:92px !important;}
+  .leaflet-control-zoom a{
+    background:var(--glass) !important; color:var(--text) !important; border-color:var(--glass-brd) !important;
+    backdrop-filter:blur(14px);
+  }
+  .leaflet-control-zoom a:hover{background:rgba(255,255,255,0.12) !important;}
+
+  .veil{
+    position:absolute; inset:0; z-index:2; pointer-events:none;
+    background:
+      radial-gradient(60% 45% at 50% -8%, rgba(12,15,20,0.85), transparent 60%),
+      radial-gradient(70% 50% at 50% 108%, rgba(12,15,20,0.9), transparent 60%);
+  }
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    position:absolute; top:0; left:0; right:0; z-index:10;
+    display:flex; align-items:flex-start; justify-content:space-between;
+    padding:20px 22px;
+    pointer-events:none;
+  }
+  .brand{pointer-events:auto;}
+  .brand .eyebrow{
+    font-size:11px; text-transform:uppercase; letter-spacing:0.16em;
+    color:var(--water); margin:0 0 4px 0;
+  }
+  .brand h1{
+    font-family:'Fraunces', serif; font-weight:480; font-style:italic;
+    font-size:26px; margin:0; line-height:1;
+    color:var(--text);
+  }
+  .brand .sub{
+    font-size:12px; color:var(--text-dim); margin-top:6px; max-width:260px; line-height:1.4;
+  }
+
+  .orb-panel{
+    pointer-events:auto;
+    display:flex; align-items:center; gap:12px;
+    background:var(--glass); border:1px solid var(--glass-brd);
+    backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+    border-radius:999px; padding:8px 16px 8px 8px;
+  }
+  .orb{
+    width:34px; height:34px; border-radius:50%; position:relative; flex:none;
+    animation:breathe var(--breathe-dur,4.5s) ease-in-out infinite;
+  }
+  .orb-ring{
+    position:absolute; inset:-6px; border-radius:50%;
+    border:1px solid var(--glass-brd);
+    animation:ring var(--breathe-dur,4.5s) ease-in-out infinite;
+  }
+  @keyframes breathe{
+    0%,100%{transform:scale(0.94); filter:brightness(0.95) saturate(1);}
+    50%{transform:scale(1.06); filter:brightness(1.15) saturate(1.3);}
+  }
+  @keyframes ring{
+    0%,100%{opacity:0.35; transform:scale(0.9);}
+    50%{opacity:0.05; transform:scale(1.35);}
+  }
+  .orb-text{line-height:1.25;}
+  .orb-text .val{font-size:13px; font-weight:700;}
+  .orb-text .lbl{font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.08em;}
+
+  /* ---------- filter chips ---------- */
+  .filters{
+    position:absolute; left:22px; bottom:26px; z-index:10;
+    display:flex; flex-direction:column; gap:8px; max-width:230px;
+  }
+  .filters-label{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-dim);
+    margin-bottom:2px; padding-left:2px;
+  }
+  .chip-row{display:flex; flex-wrap:nowrap; gap:7px; overflow-x:auto; padding-bottom:2px; scrollbar-width:none;}
+  .chip-row::-webkit-scrollbar{display:none;}
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; flex:none;
+    background:var(--glass); border:1px solid var(--glass-brd);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    color:var(--text-dim); font-size:12.5px; font-weight:600;
+    padding:7px 12px 7px 9px; border-radius:999px; cursor:pointer;
+    transition:all 0.18s ease; user-select:none;
+  }
+  .chip .dot{width:8px; height:8px; border-radius:50%; flex:none;}
+  .chip:hover{color:var(--text); border-color:rgba(255,255,255,0.22);}
+  .chip.active{color:var(--ink); font-weight:700; border-color:transparent;}
+
+  /* ---------- record FAB ---------- */
+  .fab-wrap{
+    position:absolute; left:50%; bottom:26px; transform:translateX(-50%); z-index:11;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  .fab{
+    width:64px; height:64px; border-radius:50%; border:none; cursor:pointer;
+    background:linear-gradient(155deg, var(--warm), #e08a2b);
+    box-shadow:0 8px 30px rgba(242,184,75,0.35), 0 0 0 6px rgba(242,184,75,0.08);
+    display:flex; align-items:center; justify-content:center;
+    transition:transform 0.15s ease;
+  }
+  .fab:hover{transform:scale(1.05);}
+  .fab:active{transform:scale(0.96);}
+  .fab svg{width:24px; height:24px;}
+  .fab-label{
+    font-size:11.5px; color:var(--text-dim); background:var(--glass);
+    border:1px solid var(--glass-brd); padding:4px 11px; border-radius:999px;
+    backdrop-filter:blur(14px);
+  }
+
+  /* ---------- list toggle ---------- */
+  .list-toggle{
+    position:absolute; right:22px; bottom:26px; z-index:10;
+    background:var(--glass); border:1px solid var(--glass-brd);
+    backdrop-filter:blur(18px); color:var(--text); font-size:12.5px; font-weight:600;
+    padding:11px 16px; border-radius:999px; cursor:pointer;
+    display:flex; align-items:center; gap:8px;
+  }
+  .list-toggle:hover{border-color:rgba(255,255,255,0.22);}
+
+  /* ---------- side list panel ---------- */
+  .list-panel{
+    position:absolute; top:0; right:0; bottom:0; z-index:15; width:340px;
+    background:rgba(13,17,23,0.72); border-left:1px solid var(--glass-brd);
+    backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+    transform:translateX(100%); transition:transform 0.32s cubic-bezier(.2,.8,.2,1);
+    display:flex; flex-direction:column;
+  }
+  .list-panel.open{transform:translateX(0);}
+  .list-head{padding:22px 20px 14px; border-bottom:1px solid var(--glass-brd); display:flex; justify-content:space-between; align-items:flex-start;}
+  .list-head h2{font-family:'Fraunces',serif; font-weight:500; font-size:19px; margin:0;}
+  .list-head p{font-size:12px; color:var(--text-dim); margin:4px 0 0;}
+  .icon-btn{background:none; border:none; color:var(--text-dim); cursor:pointer; padding:4px;}
+  .icon-btn:hover{color:var(--text);}
+  .list-scroll{overflow-y:auto; padding:8px 12px 20px; flex:1;}
+  .sound-card{
+    display:flex; gap:11px; padding:12px 10px; border-radius:14px; cursor:pointer;
+    transition:background 0.15s ease;
+  }
+  .sound-card:hover{background:rgba(255,255,255,0.05);}
+  .sc-play{
+    flex:none; width:36px; height:36px; border-radius:50%; border:1px solid var(--glass-brd);
+    display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.04);
+  }
+  .sc-play svg{width:13px; height:13px;}
+  .sc-body{flex:1; min-width:0;}
+  .sc-top{display:flex; align-items:center; gap:7px; margin-bottom:2px;}
+  .sc-name{font-size:13.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .sc-mood-dot{width:7px; height:7px; border-radius:50%; flex:none;}
+  .sc-desc{font-size:12px; color:var(--text-dim); line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+  .sc-meta{font-size:10.5px; color:#5b6478; margin-top:5px;}
+
+  /* ---------- modal ---------- */
+  .modal-backdrop{
+    position:fixed; inset:0; z-index:50; background:rgba(6,8,11,0.68);
+    backdrop-filter:blur(4px); display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-backdrop.open{display:flex;}
+  .modal{
+    width:100%; max-width:420px; max-height:88vh; overflow-y:auto;
+    background:linear-gradient(165deg, rgba(22,27,36,0.97), rgba(14,17,23,0.97));
+    border:1px solid var(--glass-brd); border-radius:22px; padding:26px 24px 22px;
+    box-shadow:0 30px 80px rgba(0,0,0,0.5);
+  }
+  .modal h3{font-family:'Fraunces',serif; font-weight:500; font-size:20px; margin:0 0 3px;}
+  .modal .step-sub{font-size:12.5px; color:var(--text-dim); margin:0 0 20px;}
+
+  .rec-stage{
+    display:flex; flex-direction:column; align-items:center; gap:16px; padding:10px 0 6px;
+  }
+  .rec-btn{
+    width:78px; height:78px; border-radius:50%; border:none; cursor:pointer;
+    background:radial-gradient(circle at 35% 30%, #ff8264, #e0432b);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 0 8px rgba(224,67,43,0.12);
+    transition:transform 0.15s ease;
+  }
+  .rec-btn.recording{animation:recpulse 1.4s ease-in-out infinite;}
+  @keyframes recpulse{
+    0%,100%{box-shadow:0 0 0 8px rgba(224,67,43,0.16);}
+    50%{box-shadow:0 0 0 16px rgba(224,67,43,0.05);}
+  }
+  .rec-btn svg{width:26px; height:26px;}
+  .rec-square{width:20px; height:20px; border-radius:5px; background:#fff;}
+  .rec-time{font-family:'JetBrains Mono',monospace; font-size:15px; color:var(--text-dim); min-height:20px;}
+  canvas#wave{width:100%; height:56px; border-radius:10px;}
+  .rec-hint{font-size:11.5px; color:#5b6478; text-align:center; max-width:280px; line-height:1.5;}
+  .rec-actions{display:flex; gap:10px; width:100%; margin-top:4px;}
+
+  .field{margin-bottom:16px;}
+  .field label{
+    display:block; font-size:11.5px; text-transform:uppercase; letter-spacing:0.08em;
+    color:var(--text-dim); margin-bottom:7px; font-weight:600;
+  }
+  .field input[type=text], .field textarea{
+    width:100%; background:rgba(255,255,255,0.045); border:1px solid var(--glass-brd);
+    border-radius:11px; padding:11px 13px; color:var(--text); font-family:'Manrope',sans-serif;
+    font-size:14px; resize:none; outline:none; transition:border-color 0.15s ease;
+  }
+  .field input[type=text]:focus, .field textarea:focus{border-color:var(--water);}
+  .field textarea{min-height:64px; line-height:1.4;}
+  .char-count{font-size:10.5px; color:#5b6478; text-align:right; margin-top:4px;}
+
+  .mood-grid{display:flex; flex-wrap:wrap; gap:8px;}
+  .mood-opt{
+    display:flex; align-items:center; gap:7px; padding:8px 13px; border-radius:11px;
+    border:1px solid var(--glass-brd); background:rgba(255,255,255,0.03);
+    cursor:pointer; font-size:13px; font-weight:600; color:var(--text-dim);
+    transition:all 0.15s ease;
+  }
+  .mood-opt .dot{width:8px; height:8px; border-radius:50%;}
+  .mood-opt.sel{color:var(--ink); border-color:transparent; font-weight:700;}
+
+  .loc-row{
+    display:flex; align-items:center; gap:9px; font-size:12px; color:var(--text-dim);
+    background:rgba(255,255,255,0.03); border:1px solid var(--glass-brd);
+    border-radius:11px; padding:10px 13px; margin-bottom:16px;
+  }
+  .loc-row svg{width:15px; height:15px; flex:none; color:var(--water);}
+  .loc-row .coords{font-family:'JetBrains Mono',monospace; color:var(--text);}
+
+  .btn{
+    border:none; border-radius:11px; padding:12px 18px; font-size:13.5px; font-weight:700;
+    cursor:pointer; font-family:'Manrope',sans-serif; transition:transform 0.12s ease, opacity 0.12s ease;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--warm); color:#221605; flex:1;}
+  .btn-primary:disabled{opacity:0.35; cursor:not-allowed;}
+  .btn-ghost{background:rgba(255,255,255,0.06); color:var(--text); border:1px solid var(--glass-brd);}
+  .btn-full{width:100%;}
+  .btn-close{
+    position:absolute; top:20px; right:20px; background:none; border:none;
+    color:var(--text-dim); cursor:pointer; padding:4px;
+  }
+  .btn-close:hover{color:var(--text);}
+  .modal-inner{position:relative;}
+
+  /* toast */
+  .toast-wrap{position:absolute; top:88px; left:50%; transform:translateX(-50%); z-index:30; display:flex; flex-direction:column; gap:8px; align-items:center;}
+  .toast{
+    background:var(--glass); border:1px solid var(--glass-brd); backdrop-filter:blur(16px);
+    padding:9px 16px; border-radius:999px; font-size:12.5px; display:flex; align-items:center; gap:8px;
+    animation:toastin 0.3s ease, toastout 0.4s ease 3.4s forwards;
+  }
+  @keyframes toastin{from{opacity:0; transform:translateY(-8px);} to{opacity:1; transform:translateY(0);}}
+  @keyframes toastout{to{opacity:0; transform:translateY(-6px);}}
+  .toast .dot{width:7px; height:7px; border-radius:50%;}
+
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15); border-radius:8px;}
+
+  .leaflet-container{background:var(--ink);}
+
+  @media (max-width:640px){
+    .topbar{flex-wrap:wrap; gap:10px;}
+    .brand h1{font-size:21px;}
+    .brand .sub{display:none;}
+    .orb-panel{padding:6px 12px 6px 6px;}
+    .list-panel{width:100%;}
+
+    .leaflet-top.leaflet-right{margin-top:78px !important;}
+
+    .filters{
+      left:0; right:0; bottom:0; max-width:none;
+      background:rgba(12,15,20,0.65); backdrop-filter:blur(18px);
+      border-top:1px solid var(--glass-brd);
+      padding:10px 14px 12px; gap:6px;
+    }
+    .filters-label{padding-left:0;}
+
+    .fab-wrap{bottom:78px;}
+    .list-toggle{bottom:82px; padding:9px 13px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div class="veil"></div>
+
+<div class="topbar">
+  <div class="brand">
+    <p class="eyebrow mono">mappa sonora collettiva</p>
+    <h1>Suoni di Terni</h1>
+    <p class="sub">Ogni suono registrato dagli abitanti resta sulla mappa. L'umore della città cambia in tempo reale.</p>
+  </div>
+  <div class="orb-panel">
+    <div class="orb-text" style="text-align:right;">
+      <div class="val mono" id="orbCount">—</div>
+      <div class="lbl">suoni oggi</div>
+    </div>
+    <div style="position:relative;">
+      <div class="orb-ring" id="orbRing"></div>
+      <div class="orb" id="orb"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<div class="filters">
+  <div class="filters-label mono">filtra per umore</div>
+  <div class="chip-row" id="chipRow"></div>
+</div>
+
+<div class="fab-wrap">
+  <button class="fab" id="openRecord" aria-label="Registra un suono">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#221605" stroke-width="2" stroke-linecap="round"><path d="M12 1a4 4 0 0 0-4 4v7a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+  </button>
+  <div class="fab-label mono">registra un suono</div>
+</div>
+
+<div class="list-toggle" id="listToggle">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+  <span id="listToggleLabel">elenco</span>
+</div>
+
+<div class="list-panel" id="listPanel">
+  <div class="list-head">
+    <div>
+      <h2>Registrazioni</h2>
+      <p id="listCountLabel">— suoni</p>
+    </div>
+    <button class="icon-btn" id="closeList">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="list-scroll" id="listScroll"></div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-inner">
+      <button class="btn-close" id="closeModal">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+
+      <div id="stepRecord">
+        <h3>Registra il suono</h3>
+        <p class="step-sub">Tieni il telefono verso la fonte del suono. Bastano pochi secondi.</p>
+        <div class="rec-stage">
+          <canvas id="wave" width="340" height="56"></canvas>
+          <div class="rec-time mono" id="recTime">00:00</div>
+          <button class="rec-btn" id="recBtn">
+            <div class="rec-square" id="recIcon"></div>
+          </button>
+          <p class="rec-hint" id="recHint">Tocca per iniziare a registrare</p>
+          <audio id="previewPlayer" controls style="display:none; width:100%; margin-top:2px;"></audio>
+          <div class="rec-actions" id="recActions" style="display:none;">
+            <button class="btn btn-ghost" id="recRedo">Riprova</button>
+            <button class="btn btn-primary" id="recNext">Continua</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="stepDetails" style="display:none;">
+        <h3>Racconta questo suono</h3>
+        <p class="step-sub">Qualche parola: cos'è e cosa significa per te.</p>
+
+        <div class="loc-row">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span>Posizione rilevata: <span class="coords" id="coordsLabel">42.5636, 12.6428</span></span>
+        </div>
+
+        <div class="field">
+          <label>Il tuo nome (opzionale)</label>
+          <input type="text" id="fName" placeholder="Anonimo" maxlength="40">
+        </div>
+
+        <div class="field">
+          <label>Cos'è questo suono</label>
+          <textarea id="fWhat" maxlength="120" placeholder="Es. campane del Duomo alle 7 del mattino"></textarea>
+          <div class="char-count mono"><span id="whatCount">0</span>/120</div>
+        </div>
+
+        <div class="field">
+          <label>Cosa significa per te</label>
+          <textarea id="fMeaning" maxlength="200" placeholder="Es. mi ricorda quando andavo a scuola a piedi"></textarea>
+          <div class="char-count mono"><span id="meaningCount">0</span>/200</div>
+        </div>
+
+        <div class="field">
+          <label>Umore del suono</label>
+          <div class="mood-grid" id="moodGrid"></div>
+        </div>
+
+        <button class="btn btn-primary btn-full" id="submitSound" disabled>Aggiungi alla mappa</button>
+      </div>
+
+      <div id="stepDone" style="display:none; text-align:center; padding:14px 0 4px;">
+        <div style="font-size:34px; margin-bottom:10px;">◍</div>
+        <h3>Aggiunto alla mappa</h3>
+        <p class="step-sub">Il tuo suono è ora parte della memoria sonora di Terni.</p>
+        <button class="btn btn-ghost btn-full" id="doneClose" style="margin-top:8px;">Chiudi</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function(){
+
+const MOODS = [
+  {id:'calma', label:'Calma', color:'var(--m-calma)', hex:'#4fd1c5'},
+  {id:'gioia', label:'Gioia', color:'var(--m-gioia)', hex:'#f2b84b'},
+  {id:'nostalgia', label:'Nostalgia', color:'var(--m-nostalgia)', hex:'#a78bfa'},
+  {id:'tensione', label:'Tensione', color:'var(--m-tensione)', hex:'#f2637a'},
+  {id:'caos', label:'Caos', color:'var(--m-caos)', hex:'#ff6b4a'},
+  {id:'silenzio', label:'Silenzio', color:'var(--m-silenzio)', hex:'#7c8aa3'},
+];
+const moodById = Object.fromEntries(MOODS.map(m=>[m.id,m]));
+
+const TERNI_CENTER = [42.5636, 12.6428];
+
+const SEED_SOUNDS = [
+  {id:'seed-1', name:'Marco', what:'Cascata delle Marmore al mattino presto', meaning:"il rumore dell'acqua mi svuota la testa prima del lavoro", mood:'calma', lat:42.5205, lng:12.7089, time:'08:12', createdAt:1, hasAudio:false},
+  {id:'seed-2', name:'Anonimo', what:'Mercato in Piazza della Repubblica', meaning:'la voce dei venditori che sento da bambino', mood:'nostalgia', lat:42.5645, lng:12.6465, time:'09:40', createdAt:2, hasAudio:false},
+  {id:'seed-3', name:'Giulia', what:'Campane del Duomo di Terni', meaning:'segnano ogni mia giornata, anche quando non le ascolto', mood:'calma', lat:42.5615, lng:12.6438, time:'12:00', createdAt:3, hasAudio:false},
+  {id:'seed-4', name:'Anonimo', what:'Traffico su Viale Brin all\'ora di punta', meaning:'lo stress di tornare a casa dopo un turno lungo', mood:'tensione', lat:42.5691, lng:12.6234, time:'18:05', createdAt:4, hasAudio:false},
+  {id:'seed-5', name:'Sara', what:'Bambini all\'uscita da scuola vicino al Parco Le Grazie', meaning:'gioia pura, senza motivo', mood:'gioia', lat:42.5548, lng:12.6501, time:'13:15', createdAt:5, hasAudio:false},
+  {id:'seed-6', name:'Anonimo', what:'Acciaierie AST, turno di notte', meaning:"il suono della città che non si ferma mai", mood:'caos', lat:42.5762, lng:12.6156, time:'02:30', createdAt:6, hasAudio:false},
+  {id:'seed-7', name:'Luca', what:'Anfiteatro Fausto in una sera vuota', meaning:'silenzio pieno di storia', mood:'silenzio', lat:42.5661, lng:12.6479, time:'21:50', createdAt:7, hasAudio:false},
+  {id:'seed-8', name:'Anonimo', what:'Stazione di Terni, annuncio treni', meaning:'ogni partenza mi mette un po\' di ansia', mood:'tensione', lat:42.5719, lng:12.6497, time:'07:22', createdAt:8, hasAudio:false},
+  {id:'seed-9', name:'Elena', what:'Pioggia sul Fiume Nera', meaning:'mi ricorda le estati dai nonni', mood:'nostalgia', lat:42.5589, lng:12.6612, time:'16:40', createdAt:9, hasAudio:false},
+  {id:'seed-10', name:'Anonimo', what:'Festa in Corso Tacito il sabato sera', meaning:'Terni che si sveglia', mood:'gioia', lat:42.5658, lng:12.6445, time:'22:10', createdAt:10, hasAudio:false},
+];
+let SOUNDS = [];
+let activeFilters = new Set();
+
+/* ---------------- PERSISTENT STORAGE (shared with all visitors) ---------------- */
+const INDEX_KEY = 'terni-sounds-index';
+function genId(){ return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8); }
+function audioKey(id){ return 'terni-sound-audio:' + id; }
+
+async function loadIndex(){
+  try{
+    const res = await window.storage.get(INDEX_KEY, true);
+    return res ? JSON.parse(res.value) : null;
+  }catch(e){ return null; }
+}
+async function saveIndex(list){
+  try{ await window.storage.set(INDEX_KEY, JSON.stringify(list), true); }
+  catch(e){ console.error('Errore salvataggio indice', e); }
+}
+async function saveAudio(id, dataUrl){
+  try{ await window.storage.set(audioKey(id), dataUrl, true); }
+  catch(e){ console.error('Errore salvataggio audio', e); }
+}
+async function getAudio(id){
+  try{ const res = await window.storage.get(audioKey(id), true); return res ? res.value : null; }
+  catch(e){ return null; }
+}
+function blobToDataUrl(blob){
+  return new Promise((resolve, reject)=>{
+    const r = new FileReader();
+    r.onload = ()=> resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+/* ---------------- MAP ---------------- */
+const map = L.map('map', {zoomControl:false, attributionControl:true}).setView(TERNI_CENTER, 14);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom:19, subdomains:'abc',
+  attribution:'© OpenStreetMap'
+}).addTo(map);
+L.control.zoom({position:'topright'}).addTo(map);
+
+let markers = {};
+
+function pinIcon(mood){
+  const c = moodById[mood].hex;
+  return L.divIcon({
+    className:'',
+    html:`<div style="position:relative; width:22px; height:22px;">
+      <div style="position:absolute; inset:-8px; border-radius:50%; background:${c}33; animation:ring 3s ease-in-out infinite;"></div>
+      <div style="position:absolute; inset:4px; border-radius:50%; background:${c}; box-shadow:0 0 10px ${c}99;"></div>
+    </div>`,
+    iconSize:[22,22], iconAnchor:[11,11]
+  });
+}
+
+function renderMarkers(){
+  Object.values(markers).forEach(m=>map.removeLayer(m));
+  markers = {};
+  visibleSounds().forEach(s=>{
+    const mk = L.marker([s.lat,s.lng], {icon:pinIcon(s.mood)}).addTo(map);
+    mk.bindPopup(popupHTML(s));
+    markers[s.id]=mk;
+  });
+}
+function popupHTML(s){
+  const m = moodById[s.mood];
+  const playBtn = s.hasAudio
+    ? `<button onclick="window.playSoundById('${s.id}')" style="margin-top:6px; display:flex; align-items:center; gap:5px; background:${m.hex}22; border:1px solid ${m.hex}55; color:#e9edf3; font-size:11px; padding:5px 10px; border-radius:999px; cursor:pointer;">▶ ascolta</button>`
+    : `<div style="margin-top:6px; font-size:10.5px; color:#5b6478;">nessuna registrazione audio</div>`;
+  return `<div style="font-family:'Manrope',sans-serif; min-width:180px;">
+    <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+      <div style="width:7px;height:7px;border-radius:50%;background:${m.hex}"></div>
+      <b style="font-size:13px;">${s.name}</b>
+    </div>
+    <div style="font-size:12.5px; margin-bottom:3px;">${s.what}</div>
+    <div style="font-size:11.5px; color:#8b93a7; font-style:italic;">“${s.meaning}”</div>
+    ${playBtn}
+  </div>`;
+}
+function visibleSounds(){
+  if(activeFilters.size===0) return SOUNDS;
+  return SOUNDS.filter(s=>activeFilters.has(s.mood));
+}
+
+/* ---------------- CHIPS ---------------- */
+const chipRow = document.getElementById('chipRow');
+MOODS.forEach(m=>{
+  const el = document.createElement('div');
+  el.className='chip';
+  el.innerHTML = `<span class="dot" style="background:${m.color}"></span>${m.label}`;
+  el.addEventListener('click', ()=>{
+    if(activeFilters.has(m.id)){activeFilters.delete(m.id); el.classList.remove('active'); el.style.background='';}
+    else{activeFilters.add(m.id); el.classList.add('active'); el.style.background=m.color;}
+    renderMarkers(); renderList();
+  });
+  chipRow.appendChild(el);
+});
+
+/* ---------------- ORB (aggregate mood) ---------------- */
+function updateOrb(){
+  const today = SOUNDS; // demo: treat all as "today"
+  document.getElementById('orbCount').textContent = today.length;
+  const counts = {};
+  today.forEach(s=>counts[s.mood]=(counts[s.mood]||0)+1);
+  const stops = [];
+  let acc = 0;
+  MOODS.forEach(m=>{
+    const c = counts[m.id]||0;
+    if(c===0) return;
+    const frac = c/today.length*100;
+    stops.push(`${m.hex} ${acc}%, ${m.hex} ${acc+frac}%`);
+    acc += frac;
+  });
+  const gradient = stops.length ? `conic-gradient(${stops.join(',')})` : 'var(--steel)';
+  document.getElementById('orb').style.background = gradient;
+  document.getElementById('orbRing').style.borderColor = stops.length ? MOODS[0].hex : 'var(--glass-brd)';
+  const dur = Math.max(2.2, 6 - today.length*0.15);
+  document.documentElement.style.setProperty('--breathe-dur', dur+'s');
+}
+
+/* ---------------- LIST PANEL ---------------- */
+const listPanel = document.getElementById('listPanel');
+document.getElementById('listToggle').addEventListener('click', ()=>{
+  listPanel.classList.add('open');
+});
+document.getElementById('closeList').addEventListener('click', ()=> listPanel.classList.remove('open'));
+
+function renderList(){
+  const wrap = document.getElementById('listScroll');
+  const vis = visibleSounds().slice().sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
+  document.getElementById('listCountLabel').textContent = vis.length + (vis.length===1 ? ' suono' : ' suoni');
+  wrap.innerHTML = '';
+  vis.forEach(s=>{
+    const m = moodById[s.mood];
+    const card = document.createElement('div');
+    card.className='sound-card';
+    card.innerHTML = `
+      <div class="sc-play" data-play="${s.id}" style="${s.hasAudio ? '' : 'opacity:0.35;'}"><svg viewBox="0 0 24 24" fill="${'#e9edf3'}"><path d="M8 5v14l11-7z"/></svg></div>
+      <div class="sc-body">
+        <div class="sc-top"><span class="sc-mood-dot" style="background:${m.hex}"></span><span class="sc-name">${s.name}</span></div>
+        <div class="sc-desc">${s.what}</div>
+        <div class="sc-meta mono">${s.time} · ${m.label}</div>
+      </div>`;
+    card.querySelector('[data-play]').addEventListener('click', (e)=>{
+      e.stopPropagation();
+      window.playSoundById(s.id);
+    });
+    card.addEventListener('click', ()=>{
+      map.flyTo([s.lat,s.lng], 16, {duration:0.6});
+      markers[s.id] && markers[s.id].openPopup();
+      listPanel.classList.remove('open');
+    });
+    wrap.appendChild(card);
+  });
+}
+
+let nowPlaying = null;
+window.playSoundById = async function(id){
+  const s = SOUNDS.find(x=>x.id===id);
+  if(!s || !s.hasAudio){
+    showToast('nessuna registrazione audio per questo suono', '#7c8aa3');
+    return;
+  }
+  const dataUrl = await getAudio(id);
+  if(!dataUrl){
+    showToast('audio non disponibile al momento', '#7c8aa3');
+    return;
+  }
+  if(nowPlaying){ nowPlaying.pause(); }
+  nowPlaying = new Audio(dataUrl);
+  nowPlaying.play().catch(()=> showToast('impossibile riprodurre l\'audio', '#7c8aa3'));
+};
+
+function showToast(text, color){
+  const t = document.createElement('div');
+  t.className='toast mono';
+  t.innerHTML = `<span class="dot" style="background:${color||'#4fd1c5'}"></span>${text}`;
+  toastWrap.appendChild(t);
+  setTimeout(()=>t.remove(), 3900);
+}
+
+/* ---------------- LIVE UPDATES (poll shared storage) ---------------- */
+const toastWrap = document.getElementById('toastWrap');
+async function pollForUpdates(){
+  const fresh = await loadIndex();
+  if(!fresh) return;
+  if(fresh.length === SOUNDS.length) return;
+  const knownIds = new Set(SOUNDS.map(s=>s.id));
+  const newly = fresh.filter(s=>!knownIds.has(s.id));
+  SOUNDS = fresh;
+  renderMarkers(); renderList(); updateOrb();
+  newly.forEach(s=>{
+    const m = moodById[s.mood];
+    showToast(`nuovo suono da ${s.name}`, m.hex);
+  });
+}
+setInterval(pollForUpdates, 15000);
+
+/* ---------------- MODAL / RECORD FLOW ---------------- */
+const backdrop = document.getElementById('modalBackdrop');
+const stepRecord = document.getElementById('stepRecord');
+const stepDetails = document.getElementById('stepDetails');
+const stepDone = document.getElementById('stepDone');
+const recBtn = document.getElementById('recBtn');
+const recTime = document.getElementById('recTime');
+const recHint = document.getElementById('recHint');
+const recActions = document.getElementById('recActions');
+const canvas = document.getElementById('wave');
+const ctx = canvas.getContext('2d');
+
+let mediaRecorder, audioChunks=[], stream, analyser, animId, timerInt, seconds=0, recordedBlob=null, recordedBlobUrl=null, usingMock=false;
+let draftMoods = new Set();
+let draftCoords = null;
+
+function openModal(){
+  backdrop.classList.add('open');
+  resetRecordUI();
+  stepRecord.style.display='block'; stepDetails.style.display='none'; stepDone.style.display='none';
+  locate();
+}
+function closeModal(){
+  backdrop.classList.remove('open');
+  stopStream();
+}
+document.getElementById('openRecord').addEventListener('click', openModal);
+document.getElementById('closeModal').addEventListener('click', closeModal);
+backdrop.addEventListener('click', e=>{ if(e.target===backdrop) closeModal(); });
+
+function locate(){
+  draftCoords = {lat: TERNI_CENTER[0] + (Math.random()-0.5)*0.01, lng: TERNI_CENTER[1] + (Math.random()-0.5)*0.01};
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      // demo safety: only use if plausibly near Terni-ish range, else keep mock
+      draftCoords = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+      document.getElementById('coordsLabel').textContent = draftCoords.lat.toFixed(4)+', '+draftCoords.lng.toFixed(4);
+    }, ()=>{
+      document.getElementById('coordsLabel').textContent = draftCoords.lat.toFixed(4)+', '+draftCoords.lng.toFixed(4)+' (stimata)';
+    }, {timeout:2500});
+  }
+  document.getElementById('coordsLabel').textContent = draftCoords.lat.toFixed(4)+', '+draftCoords.lng.toFixed(4);
+}
+
+function resetRecordUI(){
+  seconds=0; recTime.textContent='00:00'; recHint.textContent='Tocca per iniziare a registrare';
+  recActions.style.display='none'; recBtn.style.display='flex'; recBtn.classList.remove('recording');
+  const preview = document.getElementById('previewPlayer');
+  preview.style.display='none'; preview.removeAttribute('src');
+  recordedBlob = null; recordedBlobUrl = null;
+  clearCanvas();
+}
+function clearCanvas(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle='rgba(255,255,255,0.15)';
+  ctx.beginPath(); ctx.moveTo(0,28); ctx.lineTo(canvas.width,28); ctx.stroke();
+}
+clearCanvas();
+
+recBtn.addEventListener('click', async ()=>{
+  if(!mediaRecorder || mediaRecorder.state==='inactive'){
+    await startRecording();
+  } else {
+    stopRecording();
+  }
+});
+
+async function startRecording(){
+  audioChunks=[]; seconds=0; recBtn.classList.add('recording'); recHint.textContent='Registrazione in corso… tocca per fermare';
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    usingMock = false;
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const actx = new AudioCtx();
+    const source = actx.createMediaStreamSource(stream);
+    analyser = actx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    drawWave();
+
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e=> audioChunks.push(e.data);
+    mediaRecorder.onstop = ()=>{
+      recordedBlob = new Blob(audioChunks, {type:'audio/webm'});
+      recordedBlobUrl = URL.createObjectURL(recordedBlob);
+      const preview = document.getElementById('previewPlayer');
+      preview.src = recordedBlobUrl;
+      preview.style.display='block';
+    };
+    mediaRecorder.start();
+  }catch(err){
+    // fallback: mic not available in this preview sandbox — simulate
+    usingMock = true;
+    recHint.textContent = 'Anteprima senza microfono — registrazione simulata';
+    drawMockWave();
+  }
+  timerInt = setInterval(()=>{
+    seconds++;
+    const m = String(Math.floor(seconds/60)).padStart(2,'0');
+    const s = String(seconds%60).padStart(2,'0');
+    recTime.textContent = `${m}:${s}`;
+    if(seconds>=30) stopRecording();
+  },1000);
+}
+
+function drawWave(){
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  function loop(){
+    animId = requestAnimationFrame(loop);
+    analyser.getByteTimeDomainData(data);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.beginPath();
+    ctx.strokeStyle = '#f2b84b';
+    ctx.lineWidth = 2;
+    const slice = canvas.width/data.length;
+    let x=0;
+    for(let i=0;i<data.length;i++){
+      const v = data[i]/128.0;
+      const y = v*28;
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+      x+=slice;
+    }
+    ctx.stroke();
+  }
+  loop();
+}
+function drawMockWave(){
+  function loop(){
+    animId = requestAnimationFrame(loop);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.beginPath(); ctx.strokeStyle='#f2b84b'; ctx.lineWidth=2;
+    for(let x=0;x<canvas.width;x+=3){
+      const y = 28 + Math.sin(x*0.05 + Date.now()*0.006)*14*Math.random();
+      x===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  loop();
+}
+
+function stopRecording(){
+  clearInterval(timerInt);
+  cancelAnimationFrame(animId);
+  recBtn.classList.remove('recording');
+  if(mediaRecorder && mediaRecorder.state!=='inactive') mediaRecorder.stop();
+  stopStream(false);
+  recBtn.style.display='none';
+  recActions.style.display='flex';
+  recHint.textContent = usingMock ? 'Simulazione completata' : 'Registrazione pronta';
+}
+function stopStream(clearUI=true){
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+}
+document.getElementById('recRedo').addEventListener('click', ()=>{ resetRecordUI(); });
+document.getElementById('recNext').addEventListener('click', ()=>{
+  stepRecord.style.display='none'; stepDetails.style.display='block';
+  buildMoodGrid();
+});
+
+/* ---- step 2: details ---- */
+function buildMoodGrid(){
+  const grid = document.getElementById('moodGrid');
+  grid.innerHTML='';
+  draftMoods = new Set();
+  MOODS.forEach(m=>{
+    const el = document.createElement('div');
+    el.className='mood-opt';
+    el.innerHTML = `<span class="dot" style="background:${m.color}"></span>${m.label}`;
+    el.addEventListener('click', ()=>{
+      if(draftMoods.has(m.id)){ draftMoods.delete(m.id); el.classList.remove('sel'); el.style.background=''; }
+      else{ draftMoods.add(m.id); el.classList.add('sel'); el.style.background=m.color; }
+      checkFormValid();
+    });
+    grid.appendChild(el);
+  });
+}
+const fWhat = document.getElementById('fWhat');
+const fMeaning = document.getElementById('fMeaning');
+fWhat.addEventListener('input', ()=>{ document.getElementById('whatCount').textContent=fWhat.value.length; checkFormValid(); });
+fMeaning.addEventListener('input', ()=>{ document.getElementById('meaningCount').textContent=fMeaning.value.length; checkFormValid(); });
+function checkFormValid(){
+  const valid = fWhat.value.trim().length>2 && draftMoods.size>0;
+  document.getElementById('submitSound').disabled = !valid;
+}
+
+document.getElementById('submitSound').addEventListener('click', async ()=>{
+  const submitBtn = document.getElementById('submitSound');
+  submitBtn.disabled = true;
+  const originalLabel = submitBtn.textContent;
+  submitBtn.textContent = 'Salvataggio…';
+
+  const name = document.getElementById('fName').value.trim() || 'Anonimo';
+  const primaryMood = [...draftMoods][0];
+  const id = genId();
+  const hasAudio = !!(recordedBlob && !usingMock);
+  const s = {
+    id, name, what: fWhat.value.trim(), meaning: fMeaning.value.trim() || '—',
+    mood: primaryMood, lat: draftCoords.lat, lng: draftCoords.lng,
+    time: new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}),
+    createdAt: Date.now(), hasAudio
+  };
+
+  try{
+    let idx = await loadIndex();
+    if(!idx) idx = SEED_SOUNDS.slice();
+    idx.push(s);
+    await saveIndex(idx);
+    if(hasAudio){
+      const dataUrl = await blobToDataUrl(recordedBlob);
+      await saveAudio(id, dataUrl);
+    }
+    SOUNDS = idx;
+    renderMarkers(); renderList(); updateOrb();
+    map.flyTo([s.lat,s.lng], 16, {duration:0.7});
+    stepDetails.style.display='none'; stepDone.style.display='block';
+  }catch(e){
+    console.error('Errore invio suono', e);
+    submitBtn.textContent = originalLabel;
+    submitBtn.disabled = false;
+    showToast('errore nel salvataggio, riprova', '#f2637a');
+    return;
+  }
+
+  submitBtn.textContent = originalLabel;
+  document.getElementById('fName').value=''; fWhat.value=''; fMeaning.value='';
+  document.getElementById('whatCount').textContent='0'; document.getElementById('meaningCount').textContent='0';
+});
+document.getElementById('doneClose').addEventListener('click', closeModal);
+
+/* ---------------- INIT ---------------- */
+(async function init(){
+  let idx = await loadIndex();
+  if(!idx || idx.length===0){
+    idx = SEED_SOUNDS.slice();
+    await saveIndex(idx);
+  }
+  SOUNDS = idx;
+  renderMarkers();
+  renderList();
+  updateOrb();
+})();
+
+})();
+</script>
+</body>
+</html>
